@@ -31,11 +31,12 @@ contract SafePREP {
     /// @dev The EIP-7702 authorization message for delegating to this contract.
     bytes32 private immutable _AUTHORIZATION;
 
-    /// @dev The {Safe} implementation address.
+    /// @dev The Safe implementation address.
     address private _implementation;
 
-    /// @dev A Safe proxy creation event, the event is emitted to simulate a
-    ///      proxy deployment and trigger Safe transaction service indexing.
+    /// @notice A Safe proxy creation event.
+    /// @dev This event is emitted to simulate a proxy deployment and trigger
+    ///      Safe transaction service indexing.
     event ProxyCreation(address indexed proxy, address implementation);
 
     /// @notice Unauthorized setup.
@@ -48,8 +49,8 @@ contract SafePREP {
 
     /// @notice Function only callable if the account is uninitalized.
     /// @dev This will cause a function to be called when the account has no
-    ///      {Safe} implementation set, otherwise it will fallback to its
-    ///      implementation.
+    ///      Safe {_implementation} set, otherwise it will fallback to its
+    ///      {_implementation}.
     modifier onlyUninitialized() {
         address implementation = _implementation;
         if (implementation != address(0)) {
@@ -84,8 +85,8 @@ contract SafePREP {
     /// @dev This can only be called while the account is uninitialized. Calling
     ///      it after the account has been initialized will forward the call to
     ///      the account implementation.
-    /// @param implementation The {Safe} implementation.
-    /// @param setup The {Safe.setup} parameters.
+    /// @param implementation The Safe implementation.
+    /// @param setup The Safe setup parameters.
     /// @param salt The PREP account salt.
     function setup7702(address implementation, Setup calldata setup, uint256 salt) external onlyUninitialized {
         (bytes32 initHash, bytes memory init) = _init(implementation, setup);
@@ -105,23 +106,25 @@ contract SafePREP {
     }
 
     /// @notice Generate parameters for a Safe PREP account, and compute a valid
-    ///         `salt` for an authorization.
-    /// @dev This function accepts a `startingSalt` and returns an actual `salt`
-    ///      to use, since not all `r` and `s` values can be recovered to an
-    ///      address. This function searches for the first `salt` value starting
+    ///         salt for an authorization.
+    /// @dev This function accepts a `startingSalt` and returns an actual {salt}
+    ///      to use, since not all {r} and {s} values can be recovered to an
+    ///      address. This function searches for the first {salt} value starting
     ///      from `startingSalt` that produces a valid signature.
     ///      This can only be called while the {SafePREP} contract directly.
     ///      Calling it on a Safe PREP account will cause the call to be
     ///      forwarded to its implementation.
-    /// @param implementation The {Safe} implementation.
-    /// @param setup The {Safe.setup} parameters.
-    /// @param startingSalt The PREP account salt.
+    /// @param implementation The Safe implementation.
+    /// @param setup The Safe setup parameters.
+    /// @param startingSalt The starting PREP account salt. This is used as a
+    ///                     starting point for searching for the first possible
+    ///                     salt value that generates a valid EIP-7702
+    ///                     authorization signature.
     /// @return account The address of the generated Safe PREP account.
     /// @return salt The salt for the account.
-    /// @return yParity The y-parity value for the EIP-7702 authorization
-    ///                 signature.
-    /// @return r The EIP-7702 authorization signature R-value.
-    /// @return s The EIP-7702 authorization signature S-value.
+    /// @return yParity The EIP-7702 authorization signature Y-parity value.
+    /// @return r The EIP-7702 authorization signature R value.
+    /// @return s The EIP-7702 authorization signature S value.
     function generateAccount(address implementation, Setup calldata setup, uint256 startingSalt)
         external
         onlySelf
@@ -129,10 +132,11 @@ contract SafePREP {
     {
         (bytes32 initHash,) = _init(implementation, setup);
         salt = startingSalt;
-        // Mine a valid `salt` value that produces a valid ECDSA signature. In
+        // Mine a `salt` value that produces a valid ECDSA signature. In
         // practice, these are very easy to find.
         (account, r) = _prep(initHash, salt);
         while (account == address(0)) {
+            // Wrap around to `0` instead of panicking on overflows.
             unchecked {
                 salt++;
             }
@@ -155,7 +159,7 @@ contract SafePREP {
         }
     }
 
-    /// @notice Compute the {Safe} initialization data and hash.
+    /// @notice Compute the Safe initialization data and hash.
     function _init(address implementation, Setup memory setup)
         internal
         pure
@@ -176,7 +180,12 @@ contract SafePREP {
         return (initHash, init);
     }
 
-    /// @notice Computes the
+    /// @notice Computes the PREP account address and signature R value.
+    /// @param initHash The Safe initialization hash.
+    /// @param salt The PREP salt.
+    /// @return account The address of the PREP account for the specified
+    ///                 initialization hash and salt.
+    /// @return r The EIP-7702 authorization signature R value.
     function _prep(bytes32 initHash, uint256 salt) internal view returns (address account, bytes32 r) {
         r = keccak256(abi.encode(initHash, salt));
         account = ecrecover(_AUTHORIZATION, _V, r, _S);
@@ -186,6 +195,7 @@ contract SafePREP {
     /// @notice Compute the EIP-7702 authorization hash for delegating to the
     ///         current contract.
     /// @param delegate The delegation target.
+    /// @return authorization The EIP-7702 authorization signing message.
     function _authorization(address delegate) private pure returns (bytes32 authorization) {
         // forgefmt: disable-start
         return keccak256(
