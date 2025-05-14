@@ -43,7 +43,7 @@ contract SafePREP {
 
     constructor() {
         _SELF = address(this);
-        _AUTHORIZATION = _authorization();
+        _AUTHORIZATION = _authorization(address(this));
     }
 
     /// @notice Function only callable if the account is uninitalized.
@@ -129,6 +129,8 @@ contract SafePREP {
     {
         (bytes32 initHash,) = _init(implementation, setup);
         salt = startingSalt;
+        // Mine a valid `salt` value that produces a valid ECDSA signature. In
+        // practice, these are very easy to find.
         (account, r) = _prep(initHash, salt);
         while (account == address(0)) {
             unchecked {
@@ -183,29 +185,20 @@ contract SafePREP {
 
     /// @notice Compute the EIP-7702 authorization hash for delegating to the
     ///         current contract.
-    /// @dev This function should only be called in the constructor.
-    function _authorization() private view returns (bytes32 authorization) {
-        uint8 addressLength = 20;
-        bytes20 addressBits = bytes20(address(this));
-        while (bytes1(addressBits) == 0) {
-            addressLength--;
-            addressBits = addressBits << 8;
-        }
-
-        bytes memory addressBytes = abi.encode(addressBits);
-        assembly ("memory-safe") {
-            mstore(addressBytes, addressLength)
-        }
-
+    /// @param delegate The delegation target.
+    function _authorization(address delegate) private pure returns (bytes32 authorization) {
+        // forgefmt: disable-start
         return keccak256(
             abi.encodePacked(
-                uint8(0x05), // MAGIC
-                uint8(0xc3) + addressLength, // RLP list
+                // MAGIC
+                uint8(0x05),
+                // RLP([chainid, address, nonce])
+                uint8(0xd7), // list (23 bytes)
                 uint8(0x80), // chainid = 0
-                uint8(0x80) + addressLength,
-                addressBytes,
+                uint8(0x94), delegate, // address = delegate
                 uint8(0x80) // nonce = 0
             )
         );
+        // forgefmt: disable-end
     }
 }
