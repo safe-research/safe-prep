@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.29;
-
-import {ISafe} from "src/interfaces/ISafe.sol";
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity =0.8.29;
 
 /// @title Safe EIP-7702 PREP
 /// @notice A PREP delegation target compatible with the Safe smart account.
@@ -156,18 +154,16 @@ contract SafePREP {
         pure
         returns (bytes32 initHash, bytes memory init)
     {
-        init = abi.encodeCall(
-            ISafe(implementation).setup,
-            (
-                setup.owners,
-                setup.threshold,
-                setup.initializer,
-                setup.initializerData,
-                setup.fallbackHandler,
-                address(0),
-                0,
-                payable(address(0))
-            )
+        init = abi.encodeWithSignature(
+            "setup(address[],uint256,address,bytes,address,address,uint256,address)",
+            setup.owners,
+            setup.threshold,
+            setup.initializer,
+            setup.initializerData,
+            setup.fallbackHandler,
+            address(0),
+            0,
+            payable(address(0))
         );
         initHash = keccak256(abi.encode(implementation, keccak256(init)));
         return (initHash, init);
