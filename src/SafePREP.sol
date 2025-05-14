@@ -19,11 +19,11 @@ contract SafePREP {
     /// @dev Fixed ECDSA signature S value for the EIP-7702 authorization.
     bytes32 private constant _S = bytes32(uint256(keccak256("PREP")) - 1);
 
-    /// @dev Fixed ECDSA signature V value for the EIP-7702 authorization.
-    uint8 private constant _V = 27;
-
     /// @dev Fixed ECDSA signature Y-parity for the EIP-7702 authorization.
-    uint8 private constant _Y_PARITY = _V - 27;
+    uint8 private constant _Y_PARITY = 0;
+
+    /// @dev Fixed ECDSA signature V value for the EIP-7702 authorization.
+    uint8 private constant _V = _Y_PARITY + 27;
 
     /// @dev The {SafePREP} contract address.
     address private immutable _SELF;
