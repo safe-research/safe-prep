@@ -6,7 +6,7 @@ import {VmSafe} from "forge-std/Vm.sol";
 import {SafePREP} from "src/SafePREP.sol";
 import {ISafe, SafeDeployments} from "./deployments/safe.sol";
 
-contract CounterTest is Test {
+contract SafePREPTest is Test {
     SafePREP public safePREP;
     ISafe public safeL2;
 
