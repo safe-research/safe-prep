@@ -14,29 +14,23 @@ contract Safe7702 {
     address private immutable _SINGLETON;
 
     /// @dev The {Safe} implementation address.
-    address private _implementation;
+    address private $implementation;
 
     /// @dev The modules linked list.
-    mapping(address => address) private _modules;
+    mapping(address => address) private $modules;
 
     /// @dev The owners linked list.
-    mapping(address => address) private _owners;
-
-    /// @dev The owner count.
-    uint256 private _ownerCount;
-
-    /// @dev The signer threshold.
-    uint256 private _threshold;
-
-    /// @dev A Safe setup event, the event is emitted to simulate a Safe setup
-    ///      and trigger Safe transaction service indexing.
-    event SafeSetup(
-        address indexed initiator, address[] owners, uint256 threshold, address initializer, address fallbackHandler
-    );
+    mapping(address => address) private $owners;
 
     /// @dev A Safe proxy creation event, the event is emitted to simulate a
     ///      proxy deployment and trigger Safe transaction service indexing.
     event ProxyCreation(address indexed proxy, address implementation);
+
+    /// @dev Safe owner was added.
+    event AddedOwner(address indexed owner);
+
+    /// @dev Safe owner was removed.
+    event RemovedOwner(address indexed owner);
 
     constructor(address singleton) {
         _SINGLETON = singleton;
@@ -52,12 +46,17 @@ contract Safe7702 {
 
     /// @notice Internal fallback implementation.
     function _fallback() private {
-        address implementation = _implementation;
+        address implementation = $implementation;
         if (implementation == address(0)) {
             implementation = _SINGLETON;
-            _implementation = implementation;
-            _setup();
-            emit ProxyCreation(address(this), implementation);
+            if (msg.value == 0) {
+                $implementation = implementation;
+                _init(implementation);
+                emit ProxyCreation(address(this), implementation);
+            } else {
+                (bool success, bytes memory result) = address(this).call("");
+                _check(success, result);
+            }
         }
 
         assembly ("memory-safe") {
@@ -71,31 +70,49 @@ contract Safe7702 {
         }
     }
 
-    /// @notice Default setup implementation.
-    function _setup() private {
-        // TODO(nlordell): Once safe-global/safe-smart-account#998 lands, this
-        // function should be implemented as (pseudocode):
-        //
-        //        _SINGLETON.delegatecall(abi.encodeWithSignature(
-        //            "setup(address[],uint256,address,bytes,address,address,uint256,address)",
-        //            [address(this)],
-        //            1,
-        //            address(0),
-        //            "",
-        //            address(0),
-        //            address(0),
-        //            0,
-        //            payable(address(0))
-        //        ));
-
-        _modules[_SENTINEL] = _SENTINEL;
-        _owners[_SENTINEL] = address(this);
-        _owners[address(this)] = _SENTINEL;
-        _ownerCount = 1;
-        _threshold = 1;
+    /// @notice Default account initialization.
+    function _init(address implementation) private {
+        // TODO(nlordell): Once safe-global/safe-smart-account#998 lands, we
+        // will no longer have to do a "fake" `setup` and then emulate a
+        // `swapOwner` to `address(this).
 
         address[] memory owners = new address[](1);
-        owners[0] = address(this);
-        emit SafeSetup(address(this), owners, 1, address(0), address(0));
+        {
+            // TODO(nlordell): replace once #998 lands:
+            //   owners[0] = address(this);
+            owners[0] = address(0x2);
+        }
+        bytes memory setup = abi.encodeWithSignature(
+            "setup(address[],uint256,address,bytes,address,address,uint256,address)",
+            owners,
+            1,
+            address(0),
+            "",
+            address(0),
+            address(0),
+            0,
+            address(0)
+        );
+
+        (bool success, bytes memory result) = implementation.delegatecall(setup);
+        _check(success, result);
+
+        // TODO(nlordell): Fake an ownership change to the delegating EOA,
+        // remove once #998 lands:
+        {
+            $owners[_SENTINEL] = address(this);
+            $owners[address(this)] = _SENTINEL;
+            $owners[address(0x2)] = address(0);
+            emit RemovedOwner(address(0x2));
+            emit AddedOwner(address(this));
+        }
+    }
+
+    function _check(bool success, bytes memory result) private pure {
+        if (!success) {
+            assembly ("memory-safe") {
+                revert(add(result, 32), mload(result))
+            }
+        }
     }
 }

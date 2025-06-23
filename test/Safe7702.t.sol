@@ -10,10 +10,12 @@ contract Safe7702Test is Test {
     Safe7702 public safe7702;
     Vm.Wallet public eoa;
 
+    event ProxyCreation(address indexed proxy, address implementation);
     event SafeSetup(
         address indexed initiator, address[] owners, uint256 threshold, address initializer, address fallbackHandler
     );
-    event ProxyCreation(address indexed proxy, address implementation);
+    event AddedOwner(address indexed owner);
+    event RemovedOwner(address indexed owner);
     event SafeReceived(address indexed sender, uint256 value);
 
     function setUp() public {
@@ -37,8 +39,13 @@ contract Safe7702Test is Test {
         {
             vm.expectEmit(true, false, false, true, eoa.addr);
             address[] memory o = new address[](1);
-            o[0] = eoa.addr;
+            o[0] = address(0x2);
             emit SafeSetup(eoa.addr, o, 1, address(0), address(0));
+
+            vm.expectEmit(true, false, false, true, eoa.addr);
+            emit RemovedOwner(address(0x2));
+            vm.expectEmit(true, false, false, true, eoa.addr);
+            emit AddedOwner(eoa.addr);
         }
         {
             vm.expectEmit(true, false, false, true, eoa.addr);
